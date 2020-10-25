@@ -26,5 +26,6 @@ def srcnn_basic():
     Returns:
         (tensorflow.keras.model)
     """
-
+    # Input layer.
+    i = layers.Input()
     return None
