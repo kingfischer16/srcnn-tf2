@@ -82,26 +82,63 @@ def scale_batch(images, output_image_size):
     return np.array(scaled_images) / 255.0
 
 
-def create_xy_data(images, scale):
-    """
-
-    """
-    return None
-
-
-def import_from_file(location):
+def import_from_file(location, image_formats=['png']):
     """
     Imports all PNG images in a file location and returns
     them as a numpy.array.
 
     Args:
-        location (str): File folder location with images.
+        location (str): File folder location with images. Searches
+         all subfolders for images.
+        
+        image_formats (list): List of image format extensions to read
+         into the dataset.
     
     Returns:
         (numpy.array): Batch of images as a numpy.array, scaled to [0,1].
     """
     image_data = []
-    for image in glob.glob(location + '*.png'):
-        im_array = imread(image)
-        image_data.append(im_array)
+    for (folder, subfolders, files) in os.walk(location):
+        if len(files) > 0:
+            for f in files:
+                if any([f.lower().endswith('.'+ext)] for ext in image_formats):
+                    image_data.append(imread(folder+'/'+f))
     return np.array(image_data) / 255.0
+
+
+def create_xy_data(file_location, scale, patch_size=(60,60),
+                   patches_per_image=1, image_formats=['png']):
+    """
+    Returns the x and y training data from file. Automatically
+    extracts patches, and scales these to create the x (low-res)
+    and y (high-res truth) datasets.
+    
+    Args:
+        file_location (str): File folder location with images. Searches
+         all subfolders for images.
+        
+        scale (int): Scaling factor by which to reduce the iamges to
+         form the x data. Must divide evenly into the dimensions passed
+         to 'patch_size'.
+        
+        patch_size (tuple): Size of patches to take from each image. Value for
+         'scale' must divide evenly into 'patch_size'.
+        
+        patches_per_image (int): Number of random patches to
+         generate from each image in the input batch. Default is 1.
+        
+        image_formats (list): List of image format extensions to read
+         into the dataset.
+    
+    Returns:
+        (numpy.array, numpy.array): x and y training data.
+    """
+    # Check if 'scale' divides into 'patch_size' evenly.
+    if (patch_size[0] % scale != 0) | (patch_size[1] % scale != 0):
+        raise ValueError(f"""Value for 'scale' must divide evenly into 'patch_size'"""
+                        f""". '{scale}' does not divide into '{patch_size}'.""")
+    x_image_size = (int(patch_size[0]/scale), int(patch_size[1]/scale))
+    y_data = import_from_file(file_location, image_formats)
+    y_data = create_training_patches(y_data, patch_size, patches_per_image)
+    x_data = scale_batch(y_data, x_image_size)
+    return x_data, y_data
