@@ -70,10 +70,19 @@ class SRCNN:
         i = layers.Input(shape=(None, None, self.num_channels))
 
         # Convolutional layers.
-        x = layers.Conv2D(filters=self.n1, kernel_size=self.f1, activation=self.activation, padding='same')(i)
+        x = layers.Conv2D(filters=self.n1,
+                          kernel_size=self.f1,
+                          activation=self.activation,
+                          padding='same')(i)
         for j in range(self.nlin_layers):
-            x = layers.Conv2D(filters=self.n2, kernel_size=1, activation=self.activation, padding='same')(x)
-        x = layers.Conv2D(filters=self.num_channels, kernel_size=self.f3, activation=self.activation, padding='same')(x)
+            x = layers.Conv2D(filters=self.n2,
+                              kernel_size=1,
+                              activation=self.activation,
+                              padding='same')(x)
+        x = layers.Conv2D(filters=self.num_channels,
+                          kernel_size=self.f3,
+                          activation=self.activation,
+                          padding='same')(x)
         self.model = keras.Model(i, x)
         self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
     

@@ -12,6 +12,8 @@ import numpy as np
 import glob
 from imageio import imread
 from PIL import Image
+from scipy.ndimage import rotate
+from itertools import permutations
 
 
 def get_random_patch(image_as_array, patch_size):
@@ -106,7 +108,7 @@ def import_from_file(location, image_formats=['png']):
     return np.array(image_data) / 255.0
 
 
-def create_xy_data(file_location, scale, patch_size=(60,60),
+def create_xy_patches(file_location, scale, patch_size=(60,60),
                    patches_per_image=1, image_formats=['png']):
     """
     Returns the x and y training data from file. Automatically
@@ -140,5 +142,62 @@ def create_xy_data(file_location, scale, patch_size=(60,60),
     x_image_size = (int(patch_size[0]/scale), int(patch_size[1]/scale))
     y_data = import_from_file(file_location, image_formats)
     y_data = create_training_patches(y_data, patch_size, patches_per_image)
+    x_data = scale_batch(y_data, x_image_size)
+    return x_data, y_data
+
+
+def create_xy_data(file_location, scale, target_size=(60,60),
+                   rotations=[0], swap_channels=False, image_formats=['png']):
+    """
+    Returns the x and y training data from file. Automatically
+    scales the images to uniform resolution, then scales these to create
+    the x (low-res) and y (high-res truth) datasets.
+    
+    Args:
+        file_location (str): File folder location with images. Searches
+         all subfolders for images.
+        
+        scale (int): Scaling factor by which to reduce the iamges to
+         form the x data. Must divide evenly into the dimensions passed
+         to 'target_size'.
+        
+        target_size (tuple): Size of target image (y data). Value for
+         'scale' must divide evenly into 'target_size'.
+        
+        rotations (list): A list of integers of rotations (in degrees) to
+         perform on each, preferably multiples of 90, i.e. [0, 90, 180, 270].
+         Default is just 0 degrees (unrotated).
+        
+        swap_channels (bool): If True, returns 6 images per image, one
+         for every possible arrangement of the RGB channels in
+         the image. Default is False, implementing no channel swapping.
+        
+        image_formats (list): List of image format extensions to read
+         into the dataset.
+    
+    Returns:
+        (numpy.array, numpy.array): x and y training data.
+    """
+    # Check if 'scale' divides into 'patch_size' evenly.
+    if (target_size[0] % scale != 0) | (target_size[1] % scale != 0):
+        raise ValueError(f"""Value for 'scale' must divide evenly into 'patch_size'"""
+                        f""". '{scale}' does not divide into '{target_size}'.""")
+    x_image_size = (int(target_size[0]/scale), int(target_size[1]/scale))
+    y_data_raw = import_from_file(file_location, image_formats)
+    y_data_raw = scale_batch(y_data_raw, target_size)
+    
+    y_data_rotated = []
+    for y_img in y_data_raw:
+        y_data_rotated += [rotate(y_img, r) for r in rotations]
+    
+    if swap_channels:
+        y_data = []
+        channel_combos = list(permutations([0,1,2], 3))
+        for y_img in y_data_rotated:
+            y_data += [y_img[:, :, p] for p in channel_combos]
+    else:
+        y_data = y_data_rotated
+    y_data = np.array(y_data)
+    
     x_data = scale_batch(y_data, x_image_size)
     return x_data, y_data
