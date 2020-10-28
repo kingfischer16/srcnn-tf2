@@ -16,6 +16,37 @@ from scipy.ndimage import rotate
 from itertools import permutations
 
 
+def center_crop(images, patch_size):
+    """
+    Return a set of images cropped to the center pixels defined
+    by 'patch_size'. This is required since the SRCNN algorithm
+    described in the original paper uses no padding (to avoid
+    border effects). This function is used to crop the "y_true"
+    data before computing loss (i.e. just before passing into 
+    the 'fit' method.)
+    
+    Args:
+        images (numpy.array): The images to crop.
+        
+        patch_size (tuple): The width and height of the crop area.
+         Crop coordinates are generated automatically from 'patch_size'
+         and the input image size. Assumes all images in the batch are
+         the same size.
+        
+    Returns:
+        (numpy.array): The cropped image batch.
+    """
+    img_size = images.shape[1:3]
+    x_start = (img_size[0] - patch_size[0])//2
+    y_start = (img_size[1] - patch_size[1])//2
+    images_cropped = []
+    for img in images:
+        images_cropped.append(
+            img[x_start:x_start+patch_size[0], y_start:y_start+patch_size[1], :]
+        )
+    return np.array(images_cropped)
+
+
 def get_random_patch(image_as_array, patch_size):
     """
     Returns a random patch of the image of size 'patch_size'.
@@ -108,7 +139,7 @@ def import_from_file(location, image_formats=['png']):
     return np.array(image_data) / 255.0
 
 
-def create_xy_patches(file_location, scale, patch_size=(60,60),
+def create_xy_patches(location_or_images, scale, patch_size=(60,60),
                    patches_per_image=1, image_formats=['png']):
     """
     Returns the x and y training data from file. Automatically
@@ -116,8 +147,9 @@ def create_xy_patches(file_location, scale, patch_size=(60,60),
     and y (high-res truth) datasets.
     
     Args:
-        file_location (str): File folder location with images. Searches
-         all subfolders for images.
+        location_or_images (str, nuiimpy.array): Either a string indicating 
+         the file folder location with images (searches all subfolders
+         for images), or a numpy.array containing the images.
         
         scale (int): Scaling factor by which to reduce the iamges to
          form the x data. Must divide evenly into the dimensions passed
@@ -130,7 +162,8 @@ def create_xy_patches(file_location, scale, patch_size=(60,60),
          generate from each image in the input batch. Default is 1.
         
         image_formats (list): List of image format extensions to read
-         into the dataset.
+         into the dataset. Unused if images are passed to this
+         function as an array.
     
     Returns:
         (numpy.array, numpy.array): x and y training data.
@@ -140,7 +173,10 @@ def create_xy_patches(file_location, scale, patch_size=(60,60),
         raise ValueError(f"""Value for 'scale' must divide evenly into 'patch_size'"""
                         f""". '{scale}' does not divide into '{patch_size}'.""")
     x_image_size = (int(patch_size[0]/scale), int(patch_size[1]/scale))
-    y_data = import_from_file(file_location, image_formats)
+    if isinstance(location_or_images, str):
+        y_data = import_from_file(location_or_images, image_formats)
+    else:
+        y_data = location_or_images
     y_data = create_training_patches(y_data, patch_size, patches_per_image)
     x_data = scale_batch(y_data, x_image_size)
     return x_data, y_data
