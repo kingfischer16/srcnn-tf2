@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras import Model, layers
 from tensorflow import keras
-from ..data.preprocessing import scale_batch
+from ..data.preprocessing import scale_batch, center_crop
 
 
 class SRCNN:
@@ -24,7 +24,8 @@ class SRCNN:
     SRCNN model class.
     """
     def __init__(self, num_channels=3, f1=9, f3=5, n1=64, n2=32, nlin_layers=1,
-                 activation='relu', optimizer='adam', loss='mse', metrics=['accuracy']):
+                 activation='relu', optimizer='adam', loss='mse', metrics=['accuracy'],
+                 padding='valid', crop_size=None):
         """
         Constructor.
         
@@ -48,6 +49,9 @@ class SRCNN:
             loss (str, function): Loss function to use.
             
             metrics (list): List of metric functions to display.
+            
+            padding (str): One of 'valid' (default here and in SRCNN paper)
+             or 'same'.
         """
         self.num_channels = num_channels
         self.f1 = f1
@@ -59,6 +63,10 @@ class SRCNN:
         self.optimizer = optimizer
         self.loss = loss
         self.metrics = metrics
+        self.padding = padding
+        self.crop_size = crop_size
+        if (padding=='valid') & (crop_size is None):
+            raise ValueError("Y-data must have a cropping value if no padding is used.")
         self.make_model()
     
     def make_model(self):
@@ -73,16 +81,16 @@ class SRCNN:
         x = layers.Conv2D(filters=self.n1,
                           kernel_size=self.f1,
                           activation=self.activation,
-                          padding='same')(i)
+                          padding=self.padding)(i)
         for j in range(self.nlin_layers):
             x = layers.Conv2D(filters=self.n2,
                               kernel_size=1,
                               activation=self.activation,
-                              padding='same')(x)
+                              padding=self.padding)(x)
         x = layers.Conv2D(filters=self.num_channels,
                           kernel_size=self.f3,
                           activation=self.activation,
-                          padding='same')(x)
+                          padding=self.padding)(x)
         self.model = keras.Model(i, x)
         self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
     
@@ -97,8 +105,11 @@ class SRCNN:
             raise ValueError("Y-data must be scaled from the X-data by the same integer factor on both axes.")
         self.scale = int(scale_x)
         x_scaled = scale_batch(xdata, ydata.shape[1:3])
-        self.result = self.model.fit(x_scaled, ydata, epochs=epochs, batch_size=batch_size,
-                                      validation_split=validation_split)
+        self.result = self.model.fit(x_scaled,
+                                     ydata if self.padding=='same' else center_crop(ydata, self.crop_size),
+                                     epochs=epochs,
+                                     batch_size=batch_size,
+                                     validation_split=validation_split)
     
     def summary(self):
         """
