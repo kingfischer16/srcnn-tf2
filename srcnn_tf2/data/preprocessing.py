@@ -90,6 +90,59 @@ def create_training_patches(images, patch_size, patches_per_image=1):
     return np.array(image_patches)
 
 
+def get_stride_patches(image_as_array, patch_size, stride=14, min_stride=2):
+    """
+    Extracts a number of sub-images from the input image given the
+    number of pixels per stride and the patch size. The maximum number of
+    patches will be extracted that can fit into the image without violating
+    the minimum stride.
+    
+    Args:
+        image_as_array (numpy.array): The input image as an array,
+         assumed to be 3-dimensional with the third dimension being
+         color channels.
+        
+        patch_size (tuple, list): The (width, height) of the patch to
+         return.
+        
+        stride (int): Number of pixels to move the patch size.
+        
+        min_stride (int): The minimum difference between the last patch
+         location and the current one. Must be smaller than 'stride'.
+        
+    Returns:
+        (numpy.array): Batch of image patches.
+    """
+    if stride <= min_stride:
+        raise ValueError(f"'stride' must be greater than 'min_stride': {stride} is not greater than {min_stride}")
+    
+    img_size = image_as_array.shape[:2]
+    images = []
+    i_start_last, j_start_last = 0, 0
+    
+    for i_start in range(0, img_size[0] - stride + 1, stride):
+        if ((i_start - i_start_last) < min_stride) & (i_start > 0):
+            continue
+        if i_start+patch_size[0] >= img_size[0] + 1:
+            if (i_start + patch_size[0]) - (img_size[0] + 1) < min_stride:
+                i_start -= (i_start + patch_size[0]) - (img_size[0])
+            else:
+                continue
+        for j_start in range(0, img_size[1] - stride + 1, stride):
+            if ((j_start - j_start_last) < min_stride) & (j_start > 0):
+                continue
+            if j_start+patch_size[1] >= img_size[1] + 1:
+                if (j_start + patch_size[1]) - (img_size[1] + 1) < min_stride:
+                    j_start -= (j_start + patch_size[1]) - (img_size[1])
+                else:
+                    continue
+            images.append(
+                image_as_array[i_start:i_start+patch_size[0], j_start:j_start+patch_size[1], :]
+            )
+    
+    return np.array(images)
+        
+
 def scale_batch(images, output_image_size):
     """
     Scales and returns a batch of images.
