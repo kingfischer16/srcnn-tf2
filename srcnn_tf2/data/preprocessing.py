@@ -16,7 +16,7 @@ from scipy.ndimage import rotate
 from itertools import permutations
 
 
-def center_crop(images, patch_size):
+def center_crop(images, remove_edge):
     """
     Return a set of images cropped to the center pixels defined
     by 'patch_size'. This is required since the SRCNN algorithm
@@ -28,22 +28,20 @@ def center_crop(images, patch_size):
     Args:
         images (numpy.array): The images to crop.
         
-        patch_size (tuple): The width and height of the crop area.
-         Crop coordinates are generated automatically from 'patch_size'
-         and the input image size. Assumes all images in the batch are
-         the same size.
+        remove_edge (int): The number of pixels to remove from
+         the edge of the image.
         
     Returns:
         (numpy.array): The cropped image batch.
     """
     img_size = images.shape[1:3]
-    x_start = (img_size[0] - patch_size[0])//2
-    y_start = (img_size[1] - patch_size[1])//2
+    x_start = remove_edge
+    x_end = img_size[0] - remove_edge
+    y_start = remove_edge
+    y_end = img_size[1] - remove_edge
     images_cropped = []
     for img in images:
-        images_cropped.append(
-            img[x_start:x_start+patch_size[0], y_start:y_start+patch_size[1], :]
-        )
+        images_cropped.append(img[x_start:x_end, y_start:y_end, :])
     return np.array(images_cropped)
 
 

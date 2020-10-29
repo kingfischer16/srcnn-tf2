@@ -25,7 +25,7 @@ class SRCNN:
     """
     def __init__(self, num_channels=3, f1=9, f3=5, n1=64, n2=32, nlin_layers=1,
                  activation='relu', optimizer='adam', loss='mse', metrics=['accuracy'],
-                 padding='valid', crop_size=None):
+                 padding='valid'):
         """
         Constructor.
         
@@ -64,10 +64,17 @@ class SRCNN:
         self.loss = loss
         self.metrics = metrics
         self.padding = padding
-        self.crop_size = crop_size
-        if (padding=='valid') & (crop_size is None):
-            raise ValueError("Y-data must have a cropping value if no padding is used.")
+        
         self.make_model()
+    
+    def get_crop_size(self):
+        """
+        Calculates the size to which the output should be cropped. Used if
+        padding is 'valid'
+        
+        """
+        reduce_by = (self.f1 + self.f3 - 2) // 2
+        return reduce_by
     
     def make_model(self):
         """
@@ -106,7 +113,7 @@ class SRCNN:
         self.scale = int(scale_x)
         x_scaled = scale_batch(xdata, ydata.shape[1:3])
         self.result = self.model.fit(x_scaled,
-                                     ydata if self.padding=='same' else center_crop(ydata, self.crop_size),
+                                     ydata if self.padding=='same' else center_crop(ydata, self.get_crop_size()),
                                      epochs=epochs,
                                      batch_size=batch_size,
                                      validation_split=validation_split)
