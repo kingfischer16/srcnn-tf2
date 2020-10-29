@@ -12,7 +12,7 @@ import numpy as np
 import glob
 from imageio import imread
 from PIL import Image
-from scipy.ndimage import rotate
+from scipy.ndimage import rotate, gaussian_filter
 from itertools import permutations
 
 
@@ -34,13 +34,13 @@ def center_crop(images, remove_edge):
     Returns:
         (numpy.array): The cropped image batch.
     """
-    img_size = images.shape[1:3]
-    x_start = remove_edge
-    x_end = img_size[0] - remove_edge
-    y_start = remove_edge
-    y_end = img_size[1] - remove_edge
     images_cropped = []
     for img in images:
+        img_size = img.shape[:2]
+        x_start = remove_edge
+        x_end = img_size[0] - remove_edge
+        y_start = remove_edge
+        y_end = img_size[1] - remove_edge
         images_cropped.append(img[x_start:x_end, y_start:y_end, :])
     return np.array(images_cropped)
 
@@ -67,7 +67,7 @@ def get_random_patch(image_as_array, patch_size):
     return image_as_array[y_start:y_start+patch_size[1], x_start:x_start+patch_size[0], :]
 
 
-def create_training_patches(images, patch_size, patches_per_image=1):
+def create_training_patches(images, patch_size, patches_per_image=1, patch_stride=None):
     """
     Returns a batch of image patches, given a batch of images.
 
@@ -79,14 +79,22 @@ def create_training_patches(images, patch_size, patches_per_image=1):
         
         patches_per_image (int): Number of random patches to
          generate from each image in the input batch. Default is 1.
+        
+        patch_stride (int): Stride to use in strided patching. Default
+         is None, which does not use strided patching. If integer is passed
+         then strided patching will be used regardless of what is passed
+         to 'patches_per_image'.
     
     Returns:
         (numpy.array): Batch of image patches.
     """
     image_patches = []
     for im in images:
-        for i in range(patches_per_image):
-            image_patches.append(get_random_patch(im, patch_size))
+        if patch_stride is None:
+            for i in range(patches_per_image):
+                image_patches.append(get_random_patch(im, patch_size))
+        else:
+            image_patches += list(get_stride_patches(im, patch_size, patch_stride, 2))
     return np.array(image_patches)
 
 
@@ -191,7 +199,7 @@ def import_from_file(location, image_formats=['png']):
 
 
 def create_xy_patches(location_or_images, scale, patch_size=(60,60),
-                   patches_per_image=1, image_formats=['png']):
+                   patches_per_image=1, patch_stride=None, image_formats=['png']):
     """
     Returns the x and y training data from file. Automatically
     extracts patches, and scales these to create the x (low-res)
@@ -212,6 +220,11 @@ def create_xy_patches(location_or_images, scale, patch_size=(60,60),
         patches_per_image (int): Number of random patches to
          generate from each image in the input batch. Default is 1.
         
+        patch_stride (int): Stride to use in strided patching. Default
+         is None, which does not use strided patching. If integer is passed
+         then strided patching will be used regardless of what is passed
+         to 'patches_per_image'.
+        
         image_formats (list): List of image format extensions to read
          into the dataset. Unused if images are passed to this
          function as an array.
@@ -228,7 +241,10 @@ def create_xy_patches(location_or_images, scale, patch_size=(60,60),
         y_data = import_from_file(location_or_images, image_formats)
     else:
         y_data = location_or_images
-    y_data = create_training_patches(y_data, patch_size, patches_per_image)
+    if patch_stride is None:
+        y_data = create_training_patches(y_data, patch_size, patches_per_image)
+    else:
+        y_data = create_training_patches(y_data, patch_size, patch_stride=patch_stride)
     x_data = scale_batch(y_data, x_image_size)
     return x_data, y_data
 
@@ -288,3 +304,24 @@ def create_xy_data(file_location, scale, target_size=(60,60),
     
     x_data = scale_batch(y_data, x_image_size)
     return x_data, y_data
+
+
+def gaussian_blur(images, kernel):
+    """
+    Returns the image batch with the gaussian blur applied.
+    
+    Args:
+        images (list, numpy.array): Batch of input images.
+        
+        kernel (int): Standard deviation for Gaussian kernel.
+         The standard deviations of the Gaussian filter are given
+         for each axis as a sequence, or as a single number, in
+         which case it is equal for all axes.
+    
+    Returns:
+        (list, numpy.array): Batch of filtered images.
+    """
+    images_out = []
+    for img in images:
+        images_out.append(gaussian_filter(img, [kernel, kernel, 0]))
+    return np.array(images_out)
