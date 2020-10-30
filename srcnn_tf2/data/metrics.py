@@ -26,5 +26,6 @@ def batch_psnr(val_images_pred, val_images_true):
     """
     psnr_list = []
     for im_pred, im_true in zip(val_images_pred, val_images_true):
-        psnr_list.append(tf.image.psnr(im_pred/im_pred.max(), im_true/im_true.max(), 1.0).numpy())
+        psnr_i = tf.image.psnr(im_pred/im_pred.max(), im_true/im_true.max(), 1.0).numpy()
+        psnr_list.append(round(psnr_i, 3))
     return psnr_list

@@ -16,7 +16,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras import Model, layers
 from tensorflow import keras
-from ..data.preprocessing import scale_batch, center_crop
+from ..data.preprocessing import scale_batch, center_crop, gaussian_blur
+from ..data.plotting import n_compare
+from ..data.metrics import batch_psnr
 
 
 class SRCNN:
@@ -144,4 +146,81 @@ class SRCNN:
             ax.plot(self.result.history[plot_var], label=plot_var)
         plt.legend()
         plt.show()
+        
+    def benchmark(self, test_images, metric='psnr'):
+        """
+        Benchmark the trained model against some test images. Test images
+        can be different sizes. If model uses 'valid' padding, the metric
+        will be calculated on a center-cropped version of the test images.
+        
+        Args:
+            test_images (list): A list of images as numpy.arrays, may be of
+             different shapes.
+            
+            metric (str): The metric to return. Must be one of: 'psnr', 'ssim'.
+            
+        Returns:
+            (None): All output is printed or displayed on screen.
+        """
+        # Modify the input data so it can be evenly divided by the model scaling factor.
+        # Create x_test data for prediction.
+        print("-------------------------------------------------------------------")
+        print("Starting model benchmark...")
+        print(f"\n\t1. Scaling test images to divide evenly by model scaling factor: {self.scale}")
+        print("\n\t2. Downscaling and blurring test images for prediction input.")
+        y_true = []
+        x_test = []
+        for img in test_images:
+            # Modify y-image first.
+            x_shape = (img.shape[0]//self.scale) * self.scale
+            y_shape = (img.shape[0]//self.scale) * self.scale
+            y_img = img[:x_shape, :y_shape]
+            
+            # Scale and blur x-image.
+            out_shape = (y_img.shape[0]//self.scale, y_img.shape[1]//self.scale)
+            x_scale = scale_batch(np.array([y_img]), out_shape)
+            x_blur = gaussian_blur(x_scale, 1)
+            x_test.append(x_blur[0])
+            
+            # Crop y-images if needed.
+            if self.padding == 'valid':
+                y_img_crop = center_crop([y_img], self.get_crop_size())[0]
+                y_true.append(y_img_crop)
+        
+        # Get predicted images.
+        print("\n\t3. Predicting images using model.")
+        y_pred = []
+        for ximg in x_test:
+            predicted_image = self.predict(np.array([ximg]))[0]
+            y_pred.append(predicted_image)
+        
+        # Calculate metrics.
+        print(f"\n\t4. Calculating metric: {metric.upper()}")
+        if metric == 'psnr':
+            metric_list = batch_psnr(y_pred, y_true)
+        else:
+            raise ValueError(f"Value '{metric}' passed to argument 'metric' is not valid.")
+        
+        # Print results:
+        print(f"\n\t5. {metric.upper()} results:")
+        for i, m in enumerate(metric_list):
+            print(f"\t\t5.{i+1}. {metric.upper()}: {m}")
+        print(f"\tAverage {metric.upper()}: {round(np.mean(metric_list), 3)}")
+        
+        # Plot results.
+        print(f"\n\t6. Plotting {metric.upper()} results:")
+        for x_in, y_p, y_t, m in zip(x_test, y_pred, y_true, metric_list):
+            x_scale = scale_batch(np.array([x_in]), tuple((s*self.scale for s in x_in.shape[:2])))
+            if self.padding == 'valid':
+                x_in = center_crop([x_in], self.get_crop_size()//2)[0]
+                x_scale = center_crop([x_in], self.get_crop_size())[0]
+            
+            n_compare(
+                im_list=[x_in, x_scale, y_p, y_t],
+                label_list=['X Input', 'X Scaled', f'Y Predicted, {metric.upper()}: {m}', 'Y True'],
+                figsize=(24,12),
+                zoom_box_coord=(x_in.shape[1]//3, x_in.shape[0]//3, x_in.shape[1]//3, x_in.shape[0]//3)
+            )
+        
+        
         
