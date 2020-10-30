@@ -134,7 +134,7 @@ class SRCNN:
             raise ValueError(f"""Input images must be in 4-dimensional """
                              """vector including batch number, found: {ximages.shape}.""")
         x_scaled_data = scale_batch(ximages,
-                                    (ximages.shape[1]*self.scale, ximages.shape[2]*self.scale))
+                                    (ximages.shape[2]*self.scale, ximages.shape[1]*self.scale))
         return self.model.predict(x_scaled_data)
     
     def plot_training(self, figsize=(12, 8), plot_vars=['accuracy']):
@@ -173,53 +173,57 @@ class SRCNN:
         for img in test_images:
             # Modify y-image first.
             x_shape = (img.shape[0]//self.scale) * self.scale
-            y_shape = (img.shape[0]//self.scale) * self.scale
-            y_img = img[:x_shape, :y_shape]
-            
+            y_shape = (img.shape[1]//self.scale) * self.scale
+            y_img = img[:x_shape, :y_shape, :]
+
             # Scale and blur x-image.
-            out_shape = (y_img.shape[0]//self.scale, y_img.shape[1]//self.scale)
+            out_shape = (y_img.shape[1]//self.scale, y_img.shape[0]//self.scale)
             x_scale = scale_batch(np.array([y_img]), out_shape)
-            x_blur = gaussian_blur(x_scale, 1)
-            x_test.append(x_blur[0])
+            x_blur = gaussian_blur(x_scale, 1)[0]
+            x_test.append(x_blur/x_blur.max())
             
             # Crop y-images if needed.
             if self.padding == 'valid':
                 y_img_crop = center_crop([y_img], self.get_crop_size())[0]
-                y_true.append(y_img_crop)
-        
+                y_true.append(y_img_crop/y_img_crop.max())
+            else:
+                y_true.append(y_img/y_img.shape)
+
         # Get predicted images.
         print("\n\t3. Predicting images using model.")
         y_pred = []
         for ximg in x_test:
             predicted_image = self.predict(np.array([ximg]))[0]
-            y_pred.append(predicted_image)
-        
+            y_pred.append(predicted_image/predicted_image.max())
+
         # Calculate metrics.
         print(f"\n\t4. Calculating metric: {metric.upper()}")
         if metric == 'psnr':
             metric_list = batch_psnr(y_pred, y_true)
         else:
             raise ValueError(f"Value '{metric}' passed to argument 'metric' is not valid.")
-        
+
         # Print results:
         print(f"\n\t5. {metric.upper()} results:")
         for i, m in enumerate(metric_list):
-            print(f"\t\t5.{i+1}. {metric.upper()}: {m}")
-        print(f"\tAverage {metric.upper()}: {round(np.mean(metric_list), 3)}")
-        
+            print(f"\t\t5.{i+1}. {metric.upper()}: {m:.1f}")
+        print(f"\tAverage {metric.upper()}: {np.mean(metric_list):.3f}")
+
         # Plot results.
         print(f"\n\t6. Plotting {metric.upper()} results:")
         for x_in, y_p, y_t, m in zip(x_test, y_pred, y_true, metric_list):
-            x_scale = scale_batch(np.array([x_in]), tuple((s*self.scale for s in x_in.shape[:2])))
             if self.padding == 'valid':
                 x_in = center_crop([x_in], self.get_crop_size()//2)[0]
-                x_scale = center_crop([x_in], self.get_crop_size())[0]
-            
+            x_scale = scale_batch(np.array([x_in]), (x_in.shape[1]*self.scale, x_in.shape[0]*self.scale))[0]
+
             n_compare(
                 im_list=[x_in, x_scale, y_p, y_t],
-                label_list=['X Input', 'X Scaled', f'Y Predicted, {metric.upper()}: {m}', 'Y True'],
+                label_list=[f'X Input - {x_in.shape[1]} x {x_in.shape[0]}',
+                            f'X Scaled - {x_scale.shape[1]} x {x_scale.shape[0]}',
+                            f'Y Predicted, {metric.upper()}: {m:.1f} dB - {y_p.shape[1]} x {y_p.shape[0]}',
+                            f'Y True - {y_t.shape[1]} x {y_t.shape[0]}'],
                 figsize=(24,12),
-                zoom_box_coord=(x_in.shape[1]//3, x_in.shape[0]//3, x_in.shape[1]//3, x_in.shape[0]//3)
+                zoom_box_coord=(x_in.shape[1]//2, x_in.shape[0]//2, x_in.shape[1]//4, x_in.shape[0]//4)
             )
         
         

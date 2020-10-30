@@ -10,6 +10,32 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 
+def subsample_image(input_image, zoom_box_coords):
+    """
+    Crops the input image to the coordinates described in the
+    'zoom_box_coords' argument.
+
+    Args:
+        input_image (numpy.array): The input image.
+
+        zoom_box_coords (tuple, list): Coordinates corresponding to the first
+         (low-resolution) image. Coordinates are described and ordered as
+         follows: (x, y, width in pixels, height in pixels), where 'x' and 'y'
+         describe the top-left of the box.
+         Default is None, which draws no box and shows no zoomed images in the
+         row below.
+    
+    Returns:
+        (numpy.array) The cropped image.
+
+    Notes:
+        Code adapted from:
+            https://stackoverflow.com/questions/39382412/crop-center-portion-of-a-numpy-image
+    """
+    start_x, start_y = zoom_box_coords[0:2]
+    return input_image[start_y:start_y+zoom_box_coords[3], start_x:start_x+zoom_box_coords[2]]
+
+
 def n_compare(im_list, label_list, figsize=(12,8), zoom_box_coord=None,
                 zoom_box_color='red'):
     """
