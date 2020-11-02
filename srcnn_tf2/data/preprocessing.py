@@ -199,7 +199,8 @@ def import_from_file(location, image_formats=['png']):
 
 
 def create_xy_patches(location_or_images, scale, patch_size=(60,60),
-                   patches_per_image=1, patch_stride=None, image_formats=['png']):
+                      patches_per_image=1, patch_stride=None,
+                      rotations=[0], swap_channels=False, image_formats=['png']):
     """
     Returns the x and y training data from file. Automatically
     extracts patches, and scales these to create the x (low-res)
@@ -225,6 +226,14 @@ def create_xy_patches(location_or_images, scale, patch_size=(60,60),
          then strided patching will be used regardless of what is passed
          to 'patches_per_image'.
         
+        rotations (list): A list of integers of rotations (in degrees) to
+         perform on each, preferably multiples of 90, i.e. [0, 90, 180, 270].
+         Default is just 0 degrees (unrotated).
+        
+        swap_channels (bool): If True, returns 6 images per image, one
+         for every possible arrangement of the RGB channels in
+         the image. Default is False, implementing no channel swapping.
+        
         image_formats (list): List of image format extensions to read
          into the dataset. Unused if images are passed to this
          function as an array.
@@ -238,9 +247,27 @@ def create_xy_patches(location_or_images, scale, patch_size=(60,60),
                         f""". '{scale}' does not divide into '{patch_size}'.""")
     x_image_size = (int(patch_size[0]/scale), int(patch_size[1]/scale))
     if isinstance(location_or_images, str):
-        y_data = import_from_file(location_or_images, image_formats)
+        y_data_raw = import_from_file(location_or_images, image_formats)
     else:
-        y_data = location_or_images
+        y_data_raw = location_or_images
+    
+    # Implement rotations.
+    y_data_rotated = []
+    for y_img in y_data_raw:
+        y_data_rotated += [rotate(y_img, r) for r in rotations]
+    
+    # Implement channel permutation swap.
+    if swap_channels:
+        y_data = []
+        channel_combos = list(permutations([0,1,2], 3))
+        for y_img in y_data_rotated:
+            y_data += [y_img[:, :, p] for p in channel_combos]
+    else:
+        y_data = y_data_rotated
+    
+    y_data = np.array(y_data)
+    
+    # Get random or strided patches.
     if patch_stride is None:
         y_data = create_training_patches(y_data, patch_size, patches_per_image)
     else:

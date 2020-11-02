@@ -18,7 +18,7 @@ from tensorflow.keras import Model, layers
 from tensorflow import keras
 from ..data.preprocessing import scale_batch, center_crop, gaussian_blur
 from ..data.plotting import n_compare
-from ..data.metrics import batch_psnr
+from ..data.metrics import batch_psnr, batch_ssim
 
 
 class SRCNN:
@@ -27,7 +27,7 @@ class SRCNN:
     """
     def __init__(self, num_channels=3, f1=9, f3=5, n1=64, n2=32, nlin_layers=1,
                  activation='relu', optimizer='adam', loss='mse', metrics=['accuracy'],
-                 padding='valid'):
+                 padding='valid', batch_norm=False):
         """
         Constructor.
         
@@ -54,6 +54,9 @@ class SRCNN:
             
             padding (str): One of 'valid' (default here and in SRCNN paper)
              or 'same'.
+            
+            batch_norm (bool): If True, applies batch normalization to the output
+             of all but the last layer.
         """
         self.num_channels = num_channels
         self.f1 = f1
@@ -66,6 +69,7 @@ class SRCNN:
         self.loss = loss
         self.metrics = metrics
         self.padding = padding
+        self.batch_norm = batch_norm
         
         self.make_model()
     
@@ -91,11 +95,15 @@ class SRCNN:
                           kernel_size=self.f1,
                           activation=self.activation,
                           padding=self.padding)(i)
+        if self.batch_norm:
+            x = layers.BatchNormalization()(x)
         for j in range(self.nlin_layers):
             x = layers.Conv2D(filters=self.n2,
                               kernel_size=1,
                               activation=self.activation,
                               padding=self.padding)(x)
+            if self.batch_norm:
+                x = layers.BatchNormalization()(x)
         x = layers.Conv2D(filters=self.num_channels,
                           kernel_size=self.f3,
                           activation=self.activation,
@@ -135,7 +143,8 @@ class SRCNN:
                              """vector including batch number, found: {ximages.shape}.""")
         x_scaled_data = scale_batch(ximages,
                                     (ximages.shape[2]*self.scale, ximages.shape[1]*self.scale))
-        return self.model.predict(x_scaled_data)
+        y_pred = self.model.predict(x_scaled_data)
+        return np.array([yp for yp in y_pred])
     
     def plot_training(self, figsize=(12, 8), plot_vars=['accuracy']):
         """
@@ -187,7 +196,7 @@ class SRCNN:
                 y_img_crop = center_crop([y_img], self.get_crop_size())[0]
                 y_true.append(y_img_crop/y_img_crop.max())
             else:
-                y_true.append(y_img/y_img.shape)
+                y_true.append(y_img/y_img.max())
 
         # Get predicted images.
         print("\n\t3. Predicting images using model.")
@@ -200,6 +209,8 @@ class SRCNN:
         print(f"\n\t4. Calculating metric: {metric.upper()}")
         if metric == 'psnr':
             metric_list = batch_psnr(y_pred, y_true)
+        elif metric == 'ssim':
+            metric_list = batch_ssim(y_pred, y_true)
         else:
             raise ValueError(f"Value '{metric}' passed to argument 'metric' is not valid.")
 
@@ -213,13 +224,21 @@ class SRCNN:
         print(f"\n\t6. Plotting {metric.upper()} results:")
         for x_in, y_p, y_t, m in zip(x_test, y_pred, y_true, metric_list):
             if self.padding == 'valid':
-                x_in = center_crop([x_in], self.get_crop_size()//2)[0]
-            x_scale = scale_batch(np.array([x_in]), (x_in.shape[1]*self.scale, x_in.shape[0]*self.scale))[0]
+                x_in = center_crop([x_in], self.get_crop_size()//self.scale)[0]
+            x_scale = scale_batch(np.array([x_in]), (y_t.shape[1], y_t.shape[0]))[0]
+            
+            # Calculate the metric on the interpolated result for comparison.
+            if metric == 'psnr':
+                scaled_metric = batch_psnr([x_scale], [y_t])[0]
+            elif metric == 'ssim':
+                scaled_metric = batch_ssim([x_scale], [y_t])[0]
+            else:
+                raise ValueError(f"Value '{metric}' passed to argument 'metric' is not valid.")
 
             n_compare(
                 im_list=[x_in, x_scale, y_p, y_t],
                 label_list=[f'X Input - {x_in.shape[1]} x {x_in.shape[0]}',
-                            f'X Scaled - {x_scale.shape[1]} x {x_scale.shape[0]}',
+                            f'X Scaled, {metric.upper()}: {scaled_metric:.1f} dB - {x_scale.shape[1]} x {x_scale.shape[0]}',
                             f'Y Predicted, {metric.upper()}: {m:.1f} dB - {y_p.shape[1]} x {y_p.shape[0]}',
                             f'Y True - {y_t.shape[1]} x {y_t.shape[0]}'],
                 figsize=(24,12),
