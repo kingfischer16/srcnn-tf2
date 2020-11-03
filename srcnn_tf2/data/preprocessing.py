@@ -98,7 +98,7 @@ def create_training_patches(images, patch_size, patches_per_image=1, patch_strid
     return np.array(image_patches)
 
 
-def get_stride_patches(image_as_array, patch_size, stride=14, min_stride=2):
+def get_stride_patches(image_as_array, patch_size, stride=14, min_stride=1):
     """
     Extracts a number of sub-images from the input image given the
     number of pixels per stride and the patch size. The maximum number of
@@ -127,8 +127,9 @@ def get_stride_patches(image_as_array, patch_size, stride=14, min_stride=2):
     img_size = image_as_array.shape[:2]
     images = []
     i_start_last, j_start_last = 0, 0
+    xstride, ystride = stride, stride
     
-    for i_start in range(0, img_size[0] - stride + 1, stride):
+    for i_start in range(0, img_size[0] - xstride + 1, xstride):
         if ((i_start - i_start_last) < min_stride) & (i_start > 0):
             continue
         if i_start+patch_size[0] >= img_size[0] + 1:
@@ -136,7 +137,7 @@ def get_stride_patches(image_as_array, patch_size, stride=14, min_stride=2):
                 i_start -= (i_start + patch_size[0]) - (img_size[0])
             else:
                 continue
-        for j_start in range(0, img_size[1] - stride + 1, stride):
+        for j_start in range(0, img_size[1] - ystride + 1, ystride):
             if ((j_start - j_start_last) < min_stride) & (j_start > 0):
                 continue
             if j_start+patch_size[1] >= img_size[1] + 1:
@@ -199,7 +200,7 @@ def import_from_file(location, image_formats=['png']):
 
 
 def create_xy_patches(location_or_images, scale, patch_size=(60,60),
-                      patches_per_image=1, patch_stride=None,
+                      patches_per_image=1, patch_stride=None, blur_kernel=None,
                       rotations=[0], swap_channels=False, image_formats=['png']):
     """
     Returns the x and y training data from file. Automatically
@@ -225,6 +226,10 @@ def create_xy_patches(location_or_images, scale, patch_size=(60,60),
          is None, which does not use strided patching. If integer is passed
          then strided patching will be used regardless of what is passed
          to 'patches_per_image'.
+        
+        blur_kernel (int): Applies a Gaussian blur of size 'blur_kernel' after
+         downscaling. If negative, applies the Gaussian blur before scaling.
+         Default is None, which applies no blur.
         
         rotations (list): A list of integers of rotations (in degrees) to
          perform on each, preferably multiples of 90, i.e. [0, 90, 180, 270].
@@ -272,7 +277,13 @@ def create_xy_patches(location_or_images, scale, patch_size=(60,60),
         y_data = create_training_patches(y_data, patch_size, patches_per_image)
     else:
         y_data = create_training_patches(y_data, patch_size, patch_stride=patch_stride)
-    x_data = scale_batch(y_data, x_image_size)
+    # Blur is applied before scaling, as in paper, if desired.
+    if blur_kernel is None:
+        x_data = scale_batch(y_data, x_image_size)
+    elif blur_kernel > 0:
+        x_data = gaussian_blur(scale_batch(y_data, x_image_size), blur_kernel)
+    elif blur_kernel < 0:
+        x_data = scale_batch(gaussian_blur(y_data, -blur_kernel), x_image_size)
     return x_data, y_data
 
 

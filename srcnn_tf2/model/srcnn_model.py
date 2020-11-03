@@ -19,6 +19,7 @@ from tensorflow import keras
 from ..data.preprocessing import scale_batch, center_crop, gaussian_blur
 from ..data.plotting import n_compare
 from ..data.metrics import batch_psnr, batch_ssim
+from time import time
 
 
 class SRCNN:
@@ -111,7 +112,7 @@ class SRCNN:
         self.model = keras.Model(i, x)
         self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
     
-    def fit(self, xdata, ydata, epochs, batch_size, validation_split=0.0):
+    def fit(self, xdata, ydata, epochs, batch_size, validation_split=0.0, verbose=1):
         """
         Fits the model.
         """
@@ -122,11 +123,15 @@ class SRCNN:
             raise ValueError("Y-data must be scaled from the X-data by the same integer factor on both axes.")
         self.scale = int(scale_x)
         x_scaled = scale_batch(xdata, ydata.shape[1:3])
+        start_time = time()
         self.result = self.model.fit(x_scaled,
                                      ydata if self.padding=='same' else center_crop(ydata, self.get_crop_size()),
                                      epochs=epochs,
                                      batch_size=batch_size,
-                                     validation_split=validation_split)
+                                     validation_split=validation_split,
+                                     verbose=verbose)
+        exec_time = time() - start_time
+        print(f"{epochs} epochs completed in {exec_time//60} minutes {exec_time%60:.2f} seconds, approx. {exec_time/epochs:.2f} seconds per epoch.")
     
     def summary(self):
         """
@@ -156,7 +161,7 @@ class SRCNN:
         plt.legend()
         plt.show()
         
-    def benchmark(self, test_images, metric='psnr'):
+    def benchmark(self, test_images, metric='psnr', return_metrics=False):
         """
         Benchmark the trained model against some test images. Test images
         can be different sizes. If model uses 'valid' padding, the metric
@@ -168,8 +173,12 @@ class SRCNN:
             
             metric (str): The metric to return. Must be one of: 'psnr', 'ssim'.
             
+            return_metrics (bool): If True, the metrics are returned as a list
+             and plotting is suppressed. Use this option to benchmark many models.
+            
         Returns:
-            (None): All output is printed or displayed on screen.
+            (list, list): None by default, optionally the metrics as a list for
+             both the model predictions and the bicubic upscaling.
         """
         # Modify the input data so it can be evenly divided by the model scaling factor.
         # Create x_test data for prediction.
@@ -208,8 +217,10 @@ class SRCNN:
         # Calculate metrics.
         print(f"\n\t4. Calculating metric: {metric.upper()}")
         if metric == 'psnr':
+            m_suff = 'dB'
             metric_list = batch_psnr(y_pred, y_true)
         elif metric == 'ssim':
+            m_suff = ''
             metric_list = batch_ssim(y_pred, y_true)
         else:
             raise ValueError(f"Value '{metric}' passed to argument 'metric' is not valid.")
@@ -222,6 +233,7 @@ class SRCNN:
 
         # Plot results.
         print(f"\n\t6. Plotting {metric.upper()} results:")
+        scaled_metric_list = []
         for x_in, y_p, y_t, m in zip(x_test, y_pred, y_true, metric_list):
             if self.padding == 'valid':
                 x_in = center_crop([x_in], self.get_crop_size()//self.scale)[0]
@@ -234,16 +246,19 @@ class SRCNN:
                 scaled_metric = batch_ssim([x_scale], [y_t])[0]
             else:
                 raise ValueError(f"Value '{metric}' passed to argument 'metric' is not valid.")
-
-            n_compare(
-                im_list=[x_in, x_scale, y_p, y_t],
-                label_list=[f'X Input - {x_in.shape[1]} x {x_in.shape[0]}',
-                            f'X Scaled, {metric.upper()}: {scaled_metric:.1f} dB - {x_scale.shape[1]} x {x_scale.shape[0]}',
-                            f'Y Predicted, {metric.upper()}: {m:.1f} dB - {y_p.shape[1]} x {y_p.shape[0]}',
-                            f'Y True - {y_t.shape[1]} x {y_t.shape[0]}'],
-                figsize=(24,12),
-                zoom_box_coord=(x_in.shape[1]//2, x_in.shape[0]//2, x_in.shape[1]//4, x_in.shape[0]//4)
-            )
+            scaled_metric_list.append(scaled_metric)
+            
+            if not return_metrics:
+                n_compare(
+                    im_list=[x_in, x_scale, y_p, y_t],
+                    label_list=[f'X Input - {x_in.shape[1]} x {x_in.shape[0]}',
+                                f'X Scaled, {metric.upper()}: {scaled_metric:.1f} {m_suff} - {x_scale.shape[1]} x {x_scale.shape[0]}',
+                                f'Y Predicted, {metric.upper()}: {m:.1f} {m_suff} - {y_p.shape[1]} x {y_p.shape[0]}',
+                                f'Y True - {y_t.shape[1]} x {y_t.shape[0]}'],
+                    figsize=(24,12),
+                    zoom_box_coord=(x_in.shape[1]//2, x_in.shape[0]//2, x_in.shape[1]//4, x_in.shape[0]//4)
+                )
         
-        
-        
+        # Return metrics if desired.
+        if return_metrics:
+            return metric_list, scaled_metric_list
