@@ -235,9 +235,11 @@ def create_xy_patches(location_or_images, scale, patch_size=(60,60),
          perform on each, preferably multiples of 90, i.e. [0, 90, 180, 270].
          Default is just 0 degrees (unrotated).
         
-        swap_channels (bool): If True, returns 6 images per image, one
+        swap_channels (bool, tuple): If True, returns 6 images per image, one
          for every possible arrangement of the RGB channels in
-         the image. Default is False, implementing no channel swapping.
+         the image. If tuple (containing only (0, 1, 2)), returns the channel
+         config dictated by the tuple. (0,1,2) is standard arrangement.
+         Default is False, implementing no channel swapping.
         
         image_formats (list): List of image format extensions to read
          into the dataset. Unused if images are passed to this
@@ -264,7 +266,10 @@ def create_xy_patches(location_or_images, scale, patch_size=(60,60),
     # Implement channel permutation swap.
     if swap_channels:
         y_data = []
-        channel_combos = list(permutations([0,1,2], 3))
+        if isinstance(swap_channels, tuple):
+            channel_combos = [swap_channels]
+        else:
+            channel_combos = list(permutations([0,1,2], 3))
         for y_img in y_data_rotated:
             y_data += [y_img[:, :, p] for p in channel_combos]
     else:
@@ -309,9 +314,11 @@ def create_xy_data(file_location, scale, target_size=(60,60),
          perform on each, preferably multiples of 90, i.e. [0, 90, 180, 270].
          Default is just 0 degrees (unrotated).
         
-        swap_channels (bool): If True, returns 6 images per image, one
+        swap_channels (bool, tuple): If True, returns 6 images per image, one
          for every possible arrangement of the RGB channels in
-         the image. Default is False, implementing no channel swapping.
+         the image. If tuple (containing only (0, 1, 2)), returns the channel
+         config dictated by the tuple. (0,1,2) is standard arrangement.
+         Default is False, implementing no channel swapping.
         
         image_formats (list): List of image format extensions to read
          into the dataset.
@@ -333,7 +340,10 @@ def create_xy_data(file_location, scale, target_size=(60,60),
     
     if swap_channels:
         y_data = []
-        channel_combos = list(permutations([0,1,2], 3))
+        if isinstance(swap_channels, tuple):
+            channel_combos = [swap_channels]
+        else:
+            channel_combos = list(permutations([0,1,2], 3))
         for y_img in y_data_rotated:
             y_data += [y_img[:, :, p] for p in channel_combos]
     else:

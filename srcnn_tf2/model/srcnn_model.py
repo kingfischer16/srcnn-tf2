@@ -122,9 +122,9 @@ class SRCNN:
             (ydata.shape[2] % xdata.shape[2] != 0)):
             raise ValueError("Y-data must be scaled from the X-data by the same integer factor on both axes.")
         self.scale = int(scale_x)
-        x_scaled = scale_batch(xdata, ydata.shape[1:3])
+        #x_scaled = scale_batch(xdata, ydata.shape[1:3])
         start_time = time()
-        self.result = self.model.fit(x_scaled,
+        self.result = self.model.fit(scale_batch(xdata, ydata.shape[1:3]),
                                      ydata if self.padding=='same' else center_crop(ydata, self.get_crop_size()),
                                      epochs=epochs,
                                      batch_size=batch_size,
