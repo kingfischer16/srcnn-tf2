@@ -28,7 +28,7 @@ class SRCNN:
     """
     def __init__(self, num_channels=3, f1=9, f3=5, n1=64, n2=32, nlin_layers=1,
                  activation='relu', optimizer='adam', loss='mse', metrics=['accuracy'],
-                 padding='valid', batch_norm=False):
+                 padding='valid', batch_norm=False, dropout=None):
         """
         Constructor.
         
@@ -58,6 +58,9 @@ class SRCNN:
             
             batch_norm (bool): If True, applies batch normalization to the output
              of all but the last layer.
+            
+            dropout (float): If provided, applies a droupout to each layer of
+             magnitude 'dropout'. Default is None, which provides no layer dropout.
         """
         self.num_channels = num_channels
         self.f1 = f1
@@ -71,6 +74,7 @@ class SRCNN:
         self.metrics = metrics
         self.padding = padding
         self.batch_norm = batch_norm
+        self.dropout = dropout
         
         self.make_model()
     

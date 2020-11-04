@@ -25,7 +25,7 @@ class SRCNNTrainingGenerator(Sequence):
             
             batch_size (int): Training batch size.
         """
-        self.filenames = image_filenames
+        self.filenames = filenames
         self.batch_size = batch_size
 
     def __len__(self) :
