@@ -272,3 +272,62 @@ class SRCNN:
         # Return metrics if desired.
         if return_metrics:
             return metric_list, scaled_metric_list
+
+
+class SRCNNDeploy:
+    """
+    Model class for deploying a pre-trained SRCNN model e.g. to AWS Lambda API.
+    
+    This class is built around the expectation that it will have to upscale
+    one image at a time.
+    """
+    def __init__(self, model_location, scaling_factor, edge_pad):
+        """
+        Constructor.
+        
+        Args:
+            model_location (str): The file location and model name to load.
+            
+            scaling_factor (int): The scaling factor of the model must be known
+             in order to apply pre-upscaling. This is not discerable from the model
+             but should be contained in the model name.
+            
+            edge_pad (int): How many pixels around the edge of the image to zero-pad.
+             Required because the model uses a 'valid' padding for training to avoid
+             training in edge effects, to images to enhance must have zero padding
+             applied after upscaling.
+        """
+        self.model = keras.models.load_model(model_location)
+        self.scaling_factor = scaling_factor
+        self.edge_pad = edge_pad
+    
+    def _load_image(self):
+        """
+        Loads the image to scale. Image is converted to a numpy.array with float values
+        between 0 and 1.
+        """
+        self.image = np.zeros(self.image_path)
+    
+    def _bicubic_upscale(self):
+        """
+        Performs the pre-upscaling using bicubic interpolation on the input image.
+        """
+        self.upscaled_image = np.zeros(self.image)
+    
+    def _pad_image(self):
+        """
+        Applied zero padding to the edge of the image.
+        """
+        self.padded_image = np.pad(self.upscaled_image, self.edge_pad)
+    
+    def enhance(self, image_path):
+        """
+        Enhances the image using the model provided.
+        """
+        self.image_path = image_path
+        self._load_image()
+        self._bicubic_upscale()
+        self._pad_image()
+        x_image = np.array([self.padded_image])
+        pred_image = self.model.predict(x_image)
+        return pred_image[0]
