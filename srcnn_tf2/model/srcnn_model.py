@@ -102,6 +102,8 @@ class SRCNN:
                           padding=self.padding)(i)
         if self.batch_norm:
             x = layers.BatchNormalization()(x)
+        if self.dropout is not None:
+            x = layers.Dropout(self.dropout)(x)
         for j in range(self.nlin_layers):
             x = layers.Conv2D(filters=self.n2,
                               kernel_size=1,
@@ -109,10 +111,14 @@ class SRCNN:
                               padding=self.padding)(x)
             if self.batch_norm:
                 x = layers.BatchNormalization()(x)
+            if self.dropout is not None:
+                x = layers.Dropout(self.dropout)(x)
         x = layers.Conv2D(filters=self.num_channels,
                           kernel_size=self.f3,
                           activation=self.activation,
                           padding=self.padding)(x)
+        if self.dropout is not None:
+            x = layers.Dropout(self.dropout)(x)
         self.model = keras.Model(i, x)
         self.model.compile(optimizer=self.optimizer, loss=self.loss, metrics=self.metrics)
     
