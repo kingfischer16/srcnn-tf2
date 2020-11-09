@@ -297,28 +297,29 @@ class SRCNNDeploy:
              training in edge effects, to images to enhance must have zero padding
              applied after upscaling.
         """
-        self.model = keras.models.load_model(model_location)
+        self.model = load_model(model_location)
         self.scaling_factor = scaling_factor
         self.edge_pad = edge_pad
     
     def _load_image(self):
         """
-        Loads the image to scale. Image is converted to a numpy.array with float values
-        between 0 and 1.
+        Loads the image to scale. Image is read in as a Pillow Image class.
         """
-        self.image = np.zeros(self.image_path)
+        self.image = Image.open(self.image_path)
     
     def _bicubic_upscale(self):
         """
         Performs the pre-upscaling using bicubic interpolation on the input image.
         """
-        self.upscaled_image = np.zeros(self.image)
+        output_image_size = (int(self.image.size[0]*self.scaling_factor), int(self.image.size[1]*self.scaling_factor))
+        self.upscaled_image = self.image.resize(size=output_image_size, resample=Image.BICUBIC)
+        self.upscaled_image = np.array(self.upscaled_image) / 255.0
     
     def _pad_image(self):
         """
         Applied zero padding to the edge of the image.
         """
-        self.padded_image = np.pad(self.upscaled_image, self.edge_pad)
+        self.padded_image = np.pad(self.upscaled_image, ((self.edge_pad, self.edge_pad), (self.edge_pad, self.edge_pad), (0, 0)))
     
     def enhance(self, image_path):
         """
