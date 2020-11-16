@@ -4,6 +4,10 @@ SRCNN_UPSCALE_API.PY
 
 Script to run on AWS Lambda to use a pre-trained SRCNN
 model for image upscaling.
+
+This script makes use of a TensorFlowLite-converted model,
+since we cannot upload the entire TensorFlow package to 
+AWS Lambda.
 """
 
 # Imports.
@@ -61,7 +65,7 @@ class SRCNNDeploy:
         """
         self.padded_image = np.pad(self.upscaled_image, ((self.edge_pad, self.edge_pad), (self.edge_pad, self.edge_pad), (0, 0)))
     
-    def enhance(self, image_path):
+    def enhance(self, image_path, return_path=None):
         """
         Enhances the image using the model provided.
         """
@@ -71,4 +75,8 @@ class SRCNNDeploy:
         self._pad_image()
         x_image = np.array([self.padded_image])
         pred_image = self.model.predict(x_image)
-        return pred_image[0]
+        if return_path is not None:
+            new_im = Image.fromarray(pred_image[0])
+            new_im.save(return_path)
+        else:
+            return pred_image[0]

@@ -1,0 +1,3 @@
+Pillow
+
+/wheels/tflite_runtime-2.3.0-cp38-cp38-linux_x86_64.whl; sys_platform == 'linux'
