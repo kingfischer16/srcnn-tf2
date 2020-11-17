@@ -56,8 +56,11 @@ custom:
 functions:
   upscale-image:
     handler: handler.image_upscale
-    #package:
-    #  artifact:
+    package:
+      artifact:
+      include:
+        - handler.py
+        - lite_models
     events:
       - s3:
           bucket: ${self:custom.bucket}
