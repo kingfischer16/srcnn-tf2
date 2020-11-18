@@ -25,8 +25,8 @@ provider:
   runtime: python3.8
   profile: serverless-admin
   region: eu-north-1
-  timeout: 10
-  memorySize: 256
+  timeout: 15
+  memorySize: 512
   iamRoleStatements:
     - Effect: "Allow"
       Action: "s3:*"
@@ -55,7 +55,7 @@ custom:
 
 functions:
   upscale-image:
-    handler: handler.image_upscale
+    handler: handler.image_upscaler
     package:
       artifact:
       include:
