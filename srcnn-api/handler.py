@@ -42,7 +42,10 @@ class SRCNNDeployLite:
         # Setup model interpreter and parameters.
         self.interpreter = tflite.Interpreter(model_path=model_location)
         self.input_details = self.interpreter.get_input_details()
-        self.scaling_factor = scaling_factor
+        if scaling_factor in [2, 4, 6]:
+            self.scaling_factor = scaling_factor
+        else:
+            raise ValueError(f"Argument 'scaling_factor' must recieve a value of 2, 4, or 6. Value {scaling_factor} is unacceptable.")
         self.edge_pad = edge_pad
         print("SRCNNDeployLite object created.")
         print(f"Input details: {self.input_details}")
@@ -98,6 +101,7 @@ def get_s3_image(bucket, key):
     
     image_file = io.BytesIO(imagecontent)
     img = Image.open(image_file)
+    print(f"Input image size: {image_file.tell()}")
     return img
 
 
@@ -107,6 +111,7 @@ def upload_to_s3(bucket, key, image):
     """
     out_image = io.BytesIO()
     image.save(out_image, 'PNG')
+    print(f"Output image size: {out_image.tell()}")
     out_image.seek(0)
 
     response =s3.put_object(
@@ -126,9 +131,12 @@ def apply_upscaling(image):
     Upscale the image given the input image and scaling factor.
     Applies 2x scaling by default in the S3 example.
     """
-    model_path = 'lite_models/20201107_basic_2x_srcnn.tflite'
-    srcnn_model = SRCNNDeployLite(model_location=model_path, scaling_factor=2, edge_pad=6)
+    scale_factor = 4
+    padding = 6
+    model_path = f'lite_models/20201107_basic_{scale_factor}x_srcnn.tflite'
+    srcnn_model = SRCNNDeployLite(model_location=model_path, scaling_factor=scale_factor, edge_pad=padding)
     output_arr = srcnn_model.enhance(image)
+    output_arr = output_arr  # / output_arr.max()
     print(f"Image upscaled successfully. New image size: {output_arr.shape}, {type(output_arr)}")
     output_image = Image.fromarray((output_arr*255).astype(np.uint8))
     return output_image
